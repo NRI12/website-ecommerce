@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
 import { sendOrderConfirmationEmail } from "@/lib/email";
+import { retrieveStripeCheckoutSession } from "@/lib/payments/stripe";
 
 export async function markOrderPaid(params: {
   orderNumber: string;
@@ -54,6 +55,37 @@ export async function markOrderPaid(params: {
   }
 
   return { ok: true as const, order, alreadyProcessed: false };
+}
+
+// Fallback path for when the Stripe webhook can't reach us (e.g. no HTTPS
+// endpoint registered in the Stripe dashboard yet). Called whenever a
+// customer views a still-pending Stripe order, so the order self-heals to
+// "paid" the next time they look at it instead of staying stuck forever.
+export async function verifyPendingStripeOrder(order: {
+  orderNumber: string;
+  paymentProvider: string;
+  paymentStatus: string;
+  providerSessionId: string | null;
+}) {
+  if (order.paymentProvider !== "STRIPE" || order.paymentStatus !== "PENDING" || !order.providerSessionId) {
+    return false;
+  }
+  try {
+    const checkoutSession = await retrieveStripeCheckoutSession(order.providerSessionId);
+    if (checkoutSession.payment_status !== "paid") return false;
+    await markOrderPaid({
+      orderNumber: order.orderNumber,
+      provider: "STRIPE",
+      providerRef: checkoutSession.id,
+      amount: (checkoutSession.amount_total ?? 0) / 100,
+      currency: (checkoutSession.currency ?? "vnd").toUpperCase(),
+      rawPayload: JSON.parse(JSON.stringify(checkoutSession)) as Prisma.InputJsonValue,
+    });
+    return true;
+  } catch (error) {
+    console.error("Failed to verify pending Stripe order", order.orderNumber, error);
+    return false;
+  }
 }
 
 export async function markOrderFailed(orderNumber: string) {

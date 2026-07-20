@@ -188,7 +188,7 @@ async function dispatchToPaymentProvider(
 
   switch (paymentProvider) {
     case "STRIPE": {
-      const url = await createStripeCheckoutSession({
+      const { url, sessionId } = await createStripeCheckoutSession({
         orderId,
         orderNumber,
         amount: total,
@@ -197,6 +197,7 @@ async function dispatchToPaymentProvider(
         cancelUrl: `${appUrl}/checkout?status=cancelled`,
       });
       if (!url) return { success: false, message: "Không thể khởi tạo thanh toán Stripe." };
+      await db.order.update({ where: { id: orderId }, data: { providerSessionId: sessionId } });
       return { success: true, redirectUrl: url };
     }
     case "COD":

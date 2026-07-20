@@ -8,6 +8,7 @@ import { CancelOrderButton } from "@/components/account/cancel-order-button";
 import { OrderTimeline } from "@/components/account/order-timeline";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { getOrderByNumberForUser } from "@/lib/data/orders";
+import { verifyPendingStripeOrder } from "@/lib/orders";
 import {
   ORDER_STATUS_LABELS,
   PAYMENT_PROVIDER_LABELS,
@@ -25,8 +26,13 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
   const session = await auth();
   if (!session?.user) return null;
 
-  const order = await getOrderByNumberForUser(orderNumber, session.user.id);
+  let order = await getOrderByNumberForUser(orderNumber, session.user.id);
   if (!order) notFound();
+
+  if (await verifyPendingStripeOrder(order)) {
+    order = await getOrderByNumberForUser(orderNumber, session.user.id);
+    if (!order) notFound();
+  }
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8">

@@ -269,6 +269,10 @@ model Order {
   coupon          Coupon?       @relation(fields: [couponId], references: [id])
   paymentProvider PaymentProvider
   paymentStatus   PaymentStatus @default(PENDING)
+  // Stripe Checkout Session id, so the order-success page can verify payment
+  // directly against Stripe's API without depending on a webhook (which
+  // requires an HTTPS endpoint registered in the Stripe dashboard).
+  providerSessionId String?
   notes           String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt

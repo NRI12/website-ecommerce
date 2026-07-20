@@ -45,5 +45,9 @@ export async function createStripeCheckoutSession(params: {
     cancel_url: params.cancelUrl,
   });
 
-  return session.url;
+  return { url: session.url, sessionId: session.id };
+}
+
+export async function retrieveStripeCheckoutSession(sessionId: string) {
+  return getStripeClient().checkout.sessions.retrieve(sessionId);
 }
