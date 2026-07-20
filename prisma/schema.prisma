@@ -1,0 +1,440 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- Auth.js ----------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String? // null for OAuth-only accounts
+  role          UserRole  @default(CUSTOMER)
+  phone         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts  Account[]
+  sessions  Session[]
+  vendor    Vendor?
+  addresses Address[]
+  cart      Cart?
+  orders    Order[]
+  reviews   Review[]
+  wishlist  WishlistItem[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+enum UserRole {
+  CUSTOMER
+  VENDOR
+  ADMIN
+}
+
+// ---------- Vendors (multi-vendor marketplace) ----------
+
+model Vendor {
+  id             String       @id @default(cuid())
+  userId         String       @unique
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  storeName      String
+  slug           String       @unique
+  description    String?
+  logoUrl        String?
+  bannerUrl      String?
+  status         VendorStatus @default(PENDING)
+  commissionRate Decimal      @default(10) @db.Decimal(5, 2) // percent taken by platform
+  payoutEmail    String?
+  bankAccount    String?
+  bankName       String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  products    Product[]
+  orderItems  OrderItem[]
+  coupons     Coupon[]
+  payouts     VendorPayout[]
+
+  @@index([status])
+  @@map("vendors")
+}
+
+enum VendorStatus {
+  PENDING
+  APPROVED
+  SUSPENDED
+}
+
+// ---------- Catalog ----------
+
+model Category {
+  id       String     @id @default(cuid())
+  name     String
+  slug     String     @unique
+  imageUrl String?
+  parentId String?
+  parent   Category?  @relation("CategoryToCategory", fields: [parentId], references: [id], onDelete: SetNull)
+  children Category[] @relation("CategoryToCategory")
+  products Product[]
+
+  @@index([parentId])
+  @@map("categories")
+}
+
+model Product {
+  id          String        @id @default(cuid())
+  vendorId    String
+  vendor      Vendor        @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  categoryId  String
+  category    Category      @relation(fields: [categoryId], references: [id])
+  name        String
+  slug        String        @unique
+  description String        @db.Text
+  status      ProductStatus @default(DRAFT)
+  ratingAvg   Decimal       @default(0) @db.Decimal(3, 2)
+  ratingCount Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  variants      ProductVariant[]
+  images        ProductImage[]
+  reviews       Review[]
+  wishlistedBy  WishlistItem[]
+  cartItems     CartItem[]
+  orderItems    OrderItem[]
+
+  @@index([vendorId])
+  @@index([categoryId])
+  @@index([status])
+  @@map("products")
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+model ProductVariant {
+  id               String   @id @default(cuid())
+  productId        String
+  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku              String   @unique
+  attributes       Json // e.g. { "color": "black", "size": "M" }
+  price            Decimal  @db.Decimal(12, 2)
+  compareAtPrice   Decimal? @db.Decimal(12, 2)
+  stock            Int      @default(0)
+  weightGrams      Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  @@index([productId])
+  @@map("product_variants")
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  alt       String?
+  position  Int     @default(0)
+
+  @@index([productId])
+  @@map("product_images")
+}
+
+// ---------- Customer profile ----------
+
+model Address {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName   String
+  phone      String
+  line1      String
+  line2      String?
+  ward       String?
+  city       String
+  province   String
+  postalCode String?
+  country    String   @default("VN")
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  orders Order[]
+
+  @@index([userId])
+  @@map("addresses")
+}
+
+// ---------- Cart ----------
+
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String?    @unique
+  user      User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guestToken String?   @unique // for anonymous carts, stored in a cookie
+  items     CartItem[]
+  updatedAt DateTime   @updatedAt
+  createdAt DateTime   @default(now())
+
+  @@map("carts")
+}
+
+model CartItem {
+  id        String         @id @default(cuid())
+  cartId    String
+  cart      Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  quantity  Int            @default(1)
+  createdAt DateTime       @default(now())
+
+  @@unique([cartId, variantId])
+  @@map("cart_items")
+}
+
+// ---------- Orders ----------
+
+model Order {
+  id              String        @id @default(cuid())
+  orderNumber     String        @unique
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  addressId       String
+  address         Address       @relation(fields: [addressId], references: [id])
+  status          OrderStatus   @default(PENDING)
+  subtotal        Decimal       @db.Decimal(12, 2)
+  shippingFee     Decimal       @default(0) @db.Decimal(12, 2)
+  discountTotal   Decimal       @default(0) @db.Decimal(12, 2)
+  taxTotal        Decimal       @default(0) @db.Decimal(12, 2)
+  total           Decimal       @db.Decimal(12, 2)
+  currency        String        @default("VND")
+  couponId        String?
+  coupon          Coupon?       @relation(fields: [couponId], references: [id])
+  paymentProvider PaymentProvider
+  paymentStatus   PaymentStatus @default(PENDING)
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  items   OrderItem[]
+  payment Payment?
+  reviews Review[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("orders")
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+model OrderItem {
+  id                 String             @id @default(cuid())
+  orderId            String
+  order              Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  vendorId           String
+  vendor             Vendor             @relation(fields: [vendorId], references: [id])
+  productId          String
+  product            Product            @relation(fields: [productId], references: [id])
+  variantId          String
+  variant            ProductVariant     @relation(fields: [variantId], references: [id])
+  productNameSnapshot String
+  variantSnapshot    Json
+  unitPrice          Decimal            @db.Decimal(12, 2)
+  quantity           Int
+  subtotal           Decimal            @db.Decimal(12, 2)
+  commissionRate     Decimal            @db.Decimal(5, 2)
+  fulfillmentStatus  FulfillmentStatus  @default(PENDING)
+
+  @@index([orderId])
+  @@index([vendorId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+enum FulfillmentStatus {
+  PENDING
+  PACKED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+// ---------- Payments ----------
+
+model Payment {
+  id          String          @id @default(cuid())
+  orderId     String          @unique
+  order       Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  provider    PaymentProvider
+  providerRef String? // gateway transaction id
+  amount      Decimal         @db.Decimal(12, 2)
+  currency    String
+  status      PaymentStatus   @default(PENDING)
+  rawPayload  Json?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([provider, providerRef])
+  @@map("payments")
+}
+
+enum PaymentProvider {
+  STRIPE
+  VNPAY
+  MOMO
+  COD
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+// ---------- Reviews & wishlist ----------
+
+model Review {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId   String? // set when review is tied to a verified purchase
+  order     Order?   @relation(fields: [orderId], references: [id])
+  rating    Int // 1-5
+  comment   String?  @db.Text
+  images    String[]
+  createdAt DateTime @default(now())
+
+  @@unique([productId, userId, orderId])
+  @@index([productId])
+  @@map("reviews")
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@map("wishlist_items")
+}
+
+// ---------- Coupons ----------
+
+model Coupon {
+  id             String     @id @default(cuid())
+  code           String     @unique
+  type           CouponType
+  value          Decimal    @db.Decimal(12, 2)
+  minOrderAmount Decimal?   @db.Decimal(12, 2)
+  maxDiscount    Decimal?   @db.Decimal(12, 2)
+  usageLimit     Int?
+  usedCount      Int        @default(0)
+  vendorId       String? // null = platform-wide coupon
+  vendor         Vendor?    @relation(fields: [vendorId], references: [id])
+  startsAt       DateTime?
+  expiresAt      DateTime?
+  active         Boolean    @default(true)
+  createdAt      DateTime   @default(now())
+
+  orders Order[]
+
+  @@index([vendorId])
+  @@map("coupons")
+}
+
+enum CouponType {
+  PERCENT
+  FIXED
+}
+
+// ---------- Vendor payouts ----------
+
+model VendorPayout {
+  id          String       @id @default(cuid())
+  vendorId    String
+  vendor      Vendor       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  amount      Decimal      @db.Decimal(12, 2)
+  status      PayoutStatus @default(PENDING)
+  periodStart DateTime
+  periodEnd   DateTime
+  paidAt      DateTime?
+  createdAt   DateTime     @default(now())
+
+  @@index([vendorId])
+  @@map("vendor_payouts")
+}
+
+enum PayoutStatus {
+  PENDING
+  PAID
+  FAILED
+}

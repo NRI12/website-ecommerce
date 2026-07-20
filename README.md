@@ -1,36 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Website E-commerce
 
-## Getting Started
+Nền tảng thương mại điện tử multi-vendor: Next.js 16 (App Router) + TypeScript + Tailwind, Prisma 7 + PostgreSQL, Auth.js v5, Stripe/VNPay/Momo.
 
-First, run the development server:
+## Local development
+
+Requirements: Node 24+, Docker Desktop.
 
 ```bash
+cp .env.example .env        # already done in this repo; edit values as needed
+npm install
+npm run docker:up           # starts Postgres + Redis
+npm run db:migrate          # creates tables from prisma/schema.prisma
+npm run db:seed             # seeds demo admin/vendor/customer + sample products
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Demo accounts after seeding:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Role     | Email                | Password      |
+| -------- | --------------------- | ------------- |
+| Admin    | admin@example.com     | Admin123!     |
+| Vendor   | vendor@example.com    | Vendor123!    |
+| Customer | customer@example.com  | Customer123!  |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Scripts
 
-## Learn More
+- `npm run dev` / `npm run build` / `npm run start`
+- `npm run typecheck`, `npm run lint`
+- `npm run db:migrate`, `npm run db:seed`, `npm run db:studio`
+- `npm run docker:up`, `npm run docker:down`
 
-To learn more about Next.js, take a look at the following resources:
+## Stack notes
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Next.js 16 renamed `middleware.ts` to `proxy.ts` (`src/proxy.ts` here) — same behavior, new name.
+- Prisma 7 has no `url` in `schema.prisma`; connection config lives in `prisma.config.ts` and the runtime driver adapter (`@prisma/adapter-pg`) in `src/lib/db.ts`.
+- UI primitives are shadcn/ui on Base UI (not Radix) — polymorphism uses the `render` prop instead of `asChild`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deploying to AWS
 
-## Deploy on Vercel
+Architecture: CloudFront → ALB → ECS Fargate (this Next.js app) → RDS Postgres + ElastiCache Redis, with S3+CloudFront for uploaded assets. Provisioned with Terraform in `infra/` — see `infra/README.md` for bootstrap steps, cost notes, and custom domain/HTTPS setup.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+CI/CD is GitHub Actions: `.github/workflows/ci.yml` (lint/typecheck/build on every PR) and `.github/workflows/deploy.yml` (build → push to ECR → deploy to ECS on push to `main`, via OIDC — no long-lived AWS keys). Enabling it requires a few Terraform outputs wired into GitHub repo variables; documented in `infra/README.md`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Build the container image locally to sanity-check it: `docker build -t website-ecommerce .`

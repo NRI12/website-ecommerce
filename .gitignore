@@ -32,10 +32,25 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
 
+# playwright MCP test artifacts
+.playwright-mcp/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# prisma generated client
+/src/generated/prisma
+
+# terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl
