@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { auth } from "@/auth";
 import { Badge } from "@/components/ui/badge";
+import { CancelOrderButton } from "@/components/account/cancel-order-button";
 import { OrderTimeline } from "@/components/account/order-timeline";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { getOrderByNumberForUser } from "@/lib/data/orders";
@@ -31,7 +32,10 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
     <div className="mx-auto w-full max-w-3xl px-4 py-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Đơn hàng #{order.orderNumber}</h1>
-        <Badge variant="outline">{ORDER_STATUS_LABELS[order.status] ?? order.status}</Badge>
+        <div className="flex items-center gap-3">
+          <Badge variant="outline">{ORDER_STATUS_LABELS[order.status] ?? order.status}</Badge>
+          {order.status === "PENDING" ? <CancelOrderButton orderId={order.id} /> : null}
+        </div>
       </div>
 
       <div className="mb-6 rounded-lg border p-4">

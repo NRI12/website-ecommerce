@@ -5,6 +5,7 @@ const productCardSelect = {
   id: true,
   slug: true,
   name: true,
+  brand: true,
   ratingAvg: true,
   ratingCount: true,
   images: {
@@ -13,7 +14,7 @@ const productCardSelect = {
     select: { url: true, alt: true },
   },
   variants: {
-    select: { price: true, compareAtPrice: true },
+    select: { price: true, compareAtPrice: true, stock: true },
   },
   vendor: {
     select: { storeName: true, slug: true },
@@ -25,14 +26,17 @@ const productCardSelect = {
 
 export type ProductCard = Awaited<ReturnType<typeof mapProductCard>>;
 
+const LOW_STOCK_THRESHOLD = 5;
+
 function mapProductCard(product: {
   id: string;
   slug: string;
   name: string;
+  brand: string | null;
   ratingAvg: unknown;
   ratingCount: number;
   images: { url: string; alt: string | null }[];
-  variants: { price: unknown; compareAtPrice: unknown | null }[];
+  variants: { price: unknown; compareAtPrice: unknown | null; stock: number }[];
   vendor: { storeName: string; slug: string };
   category: { name: string; slug: string };
 }) {
@@ -41,16 +45,20 @@ function mapProductCard(product: {
   const compareAt = product.variants
     .map((v) => (v.compareAtPrice ? Number(v.compareAtPrice) : null))
     .find((v): v is number => v !== null);
+  const totalStock = product.variants.reduce((sum, v) => sum + v.stock, 0);
 
   return {
     id: product.id,
     slug: product.slug,
     name: product.name,
+    brand: product.brand,
     image: product.images[0] ?? null,
     minPrice,
     compareAtPrice: compareAt ?? null,
     ratingAvg: Number(product.ratingAvg),
     ratingCount: product.ratingCount,
+    inStock: totalStock > 0,
+    lowStock: totalStock > 0 && totalStock <= LOW_STOCK_THRESHOLD,
     vendor: product.vendor,
     category: product.category,
   };
@@ -88,6 +96,20 @@ export async function getCategoryBySlug(slug: string) {
   return db.category.findUnique({ where: { slug } });
 }
 
+export async function getBrands(categorySlug?: string) {
+  const brands = await db.product.findMany({
+    where: {
+      status: ProductStatus.ACTIVE,
+      brand: { not: null },
+      ...(categorySlug ? { category: { slug: categorySlug } } : {}),
+    },
+    select: { brand: true },
+    distinct: ["brand"],
+    orderBy: { brand: "asc" },
+  });
+  return brands.map((b) => b.brand).filter((b): b is string => b !== null);
+}
+
 export type ProductSort = "newest" | "rating" | "price-asc" | "price-desc";
 
 interface ProductListFilters {
@@ -96,6 +118,9 @@ interface ProductListFilters {
   search?: string;
   minPrice?: number;
   maxPrice?: number;
+  minRating?: number;
+  inStockOnly?: boolean;
+  brand?: string;
   sort?: ProductSort;
   page?: number;
   pageSize?: number;
@@ -115,20 +140,28 @@ export async function getProducts(filters: ProductListFilters = {}) {
     search,
     minPrice,
     maxPrice,
+    minRating,
+    inStockOnly,
+    brand,
     sort = "newest",
     page = 1,
     pageSize = 20,
   } = filters;
 
-  const priceFilter =
-    minPrice !== undefined || maxPrice !== undefined
+  const variantFilter =
+    minPrice !== undefined || maxPrice !== undefined || inStockOnly
       ? {
           variants: {
             some: {
-              price: {
-                ...(minPrice !== undefined ? { gte: minPrice } : {}),
-                ...(maxPrice !== undefined ? { lte: maxPrice } : {}),
-              },
+              ...(minPrice !== undefined || maxPrice !== undefined
+                ? {
+                    price: {
+                      ...(minPrice !== undefined ? { gte: minPrice } : {}),
+                      ...(maxPrice !== undefined ? { lte: maxPrice } : {}),
+                    },
+                  }
+                : {}),
+              ...(inStockOnly ? { stock: { gt: 0 } } : {}),
             },
           },
         }
@@ -141,7 +174,9 @@ export async function getProducts(filters: ProductListFilters = {}) {
     ...(search
       ? { name: { contains: search, mode: "insensitive" as const } }
       : {}),
-    ...priceFilter,
+    ...(minRating !== undefined ? { ratingAvg: { gte: minRating } } : {}),
+    ...(brand ? { brand } : {}),
+    ...variantFilter,
   };
 
   const [products, total] = await Promise.all([

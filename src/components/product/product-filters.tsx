@@ -4,6 +4,8 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 const SORT_OPTIONS = [
   { value: "newest", label: "Mới nhất" },
@@ -12,7 +14,15 @@ const SORT_OPTIONS = [
   { value: "price-desc", label: "Giá: Cao đến thấp" },
 ];
 
-export function ProductFilters() {
+const RATING_OPTIONS = [
+  { value: "0", label: "Tất cả đánh giá" },
+  { value: "4", label: "Từ 4 sao" },
+  { value: "4.5", label: "Từ 4.5 sao" },
+];
+
+const ALL_BRANDS = "__all__";
+
+export function ProductFilters({ brands = [] }: { brands?: string[] }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -39,6 +49,11 @@ export function ProductFilters() {
     router.push(`${pathname}?${params.toString()}`);
   }
 
+  const ratingValue = searchParams.get("minRating") ?? "0";
+  const brandValue = searchParams.get("brand") ?? ALL_BRANDS;
+  const inStockOnly = searchParams.get("inStock") === "1";
+  const brandItems = [{ value: ALL_BRANDS, label: "Tất cả thương hiệu" }, ...brands.map((b) => ({ value: b, label: b }))];
+
   return (
     <div className="mb-6 flex flex-wrap items-center gap-3">
       <form onSubmit={handlePriceSubmit} className="flex items-center gap-2">
@@ -61,6 +76,50 @@ export function ProductFilters() {
           Áp dụng
         </Button>
       </form>
+
+      <Select
+        items={RATING_OPTIONS}
+        value={ratingValue}
+        onValueChange={(v) => updateParam("minRating", v && v !== "0" ? v : null)}
+      >
+        <SelectTrigger className="w-40">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {RATING_OPTIONS.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {brands.length > 0 ? (
+        <Select
+          items={brandItems}
+          value={brandValue}
+          onValueChange={(v) => updateParam("brand", v && v !== ALL_BRANDS ? v : null)}
+        >
+          <SelectTrigger className="w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {brandItems.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : null}
+
+      <Label className="flex items-center gap-2 text-sm font-normal">
+        <Checkbox
+          checked={inStockOnly}
+          onCheckedChange={(checked) => updateParam("inStock", checked ? "1" : null)}
+        />
+        Còn hàng
+      </Label>
 
       <Select
         items={SORT_OPTIONS}

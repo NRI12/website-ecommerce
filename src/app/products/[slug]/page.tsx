@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { Star } from "lucide-react";
 import { AddToCartForm } from "@/components/product/add-to-cart-form";
 import { ProductCard } from "@/components/product/product-card";
+import { ProductImageGallery } from "@/components/product/product-image-gallery";
+import { RecentlyViewedList, RecentlyViewedTracker } from "@/components/product/recently-viewed";
 import { ReviewForm } from "@/components/product/review-form";
 import { WishlistButton } from "@/components/product/wishlist-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -92,6 +93,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8">
+      <RecentlyViewedTracker
+        item={{ slug: product.slug, name: product.name, imageUrl: product.images[0]?.url ?? null, price: minPrice }}
+      />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -103,28 +107,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
       </nav>
 
       <div className="grid gap-8 lg:grid-cols-2">
-        <div className="grid gap-3">
-          <div className="relative aspect-square overflow-hidden rounded-lg bg-muted">
-            {product.images[0] ? (
-              <Image
-                src={product.images[0].url}
-                alt={product.images[0].alt ?? product.name}
-                fill
-                priority
-                className="object-cover"
-              />
-            ) : null}
-          </div>
-          {product.images.length > 1 ? (
-            <div className="grid grid-cols-5 gap-2">
-              {product.images.slice(1, 6).map((image) => (
-                <div key={image.id} className="relative aspect-square overflow-hidden rounded-md bg-muted">
-                  <Image src={image.url} alt={image.alt ?? product.name} fill className="object-cover" />
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
+        <ProductImageGallery images={product.images} productName={product.name} />
 
         <div>
           <Link
@@ -220,6 +203,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
           </div>
         </section>
       ) : null}
+
+      <RecentlyViewedList excludeSlug={product.slug} />
     </div>
   );
 }

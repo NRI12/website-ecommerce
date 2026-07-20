@@ -137,6 +137,7 @@ model Product {
   name        String
   slug        String        @unique
   description String        @db.Text
+  brand       String?
   status      ProductStatus @default(DRAFT)
   ratingAvg   Decimal       @default(0) @db.Decimal(3, 2)
   ratingCount Int           @default(0)
@@ -153,6 +154,7 @@ model Product {
   @@index([vendorId])
   @@index([categoryId])
   @@index([status])
+  @@index([brand])
   @@map("products")
 }
 

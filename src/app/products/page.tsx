@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ProductCard } from "@/components/product/product-card";
 import { ProductFilters } from "@/components/product/product-filters";
 import { buttonVariants } from "@/components/ui/button";
-import { getProducts, type ProductSort } from "@/lib/data/products";
+import { getBrands, getProducts, type ProductSort } from "@/lib/data/products";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Tất cả sản phẩm" };
@@ -16,6 +16,9 @@ interface ProductsPageProps {
     sort?: string;
     minPrice?: string;
     maxPrice?: string;
+    minRating?: string;
+    inStock?: string;
+    brand?: string;
   }>;
 }
 
@@ -23,14 +26,20 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   const params = await searchParams;
   const page = Math.max(1, Number(params.page) || 1);
 
-  const { products, total, totalPages } = await getProducts({
-    search: params.search,
-    categorySlug: params.category,
-    sort: params.sort as ProductSort | undefined,
-    minPrice: params.minPrice ? Number(params.minPrice) : undefined,
-    maxPrice: params.maxPrice ? Number(params.maxPrice) : undefined,
-    page,
-  });
+  const [{ products, total, totalPages }, brands] = await Promise.all([
+    getProducts({
+      search: params.search,
+      categorySlug: params.category,
+      sort: params.sort as ProductSort | undefined,
+      minPrice: params.minPrice ? Number(params.minPrice) : undefined,
+      maxPrice: params.maxPrice ? Number(params.maxPrice) : undefined,
+      minRating: params.minRating ? Number(params.minRating) : undefined,
+      inStockOnly: params.inStock === "1",
+      brand: params.brand,
+      page,
+    }),
+    getBrands(params.category),
+  ]);
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8">
@@ -39,7 +48,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       </h1>
       <p className="mb-4 text-sm text-muted-foreground">{total} sản phẩm</p>
 
-      <ProductFilters />
+      <ProductFilters brands={brands} />
 
       {products.length > 0 ? (
         <>
@@ -94,7 +103,16 @@ function PaginationLink({
 }
 
 function buildPageHref(
-  params: { search?: string; category?: string; sort?: string; minPrice?: string; maxPrice?: string },
+  params: {
+    search?: string;
+    category?: string;
+    sort?: string;
+    minPrice?: string;
+    maxPrice?: string;
+    minRating?: string;
+    inStock?: string;
+    brand?: string;
+  },
   page: number,
 ) {
   const search = new URLSearchParams();
@@ -103,6 +121,9 @@ function buildPageHref(
   if (params.sort) search.set("sort", params.sort);
   if (params.minPrice) search.set("minPrice", params.minPrice);
   if (params.maxPrice) search.set("maxPrice", params.maxPrice);
+  if (params.minRating) search.set("minRating", params.minRating);
+  if (params.inStock) search.set("inStock", params.inStock);
+  if (params.brand) search.set("brand", params.brand);
   search.set("page", String(page));
   return `/products?${search.toString()}`;
 }

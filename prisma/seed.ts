@@ -178,17 +178,16 @@ async function main() {
     const vendorSlug = CATEGORY_VENDOR[p.categorySlug];
     const vendor = vendors[vendorSlug];
 
-    const description = p.brand ? `Thương hiệu: ${p.brand}. ${p.description}` : p.description;
-
     const product = await db.product.upsert({
       where: { slug: p.slug },
-      update: { description, ratingAvg: p.ratingAvg, ratingCount: p.ratingCount },
+      update: { description: p.description, brand: p.brand, ratingAvg: p.ratingAvg, ratingCount: p.ratingCount },
       create: {
         vendorId: vendor.id,
         categoryId: category.id,
         name: p.name,
         slug: p.slug,
-        description,
+        description: p.description,
+        brand: p.brand,
         status: "ACTIVE",
         ratingAvg: p.ratingAvg,
         ratingCount: p.ratingCount,

@@ -34,6 +34,16 @@ export function ProductCard({ product }: { product: ProductCardData }) {
             -{discountPercent}%
           </span>
         ) : null}
+        {product.lowStock ? (
+          <span className="absolute bottom-2 left-2 rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm">
+            Sắp hết hàng
+          </span>
+        ) : null}
+        {!product.inStock ? (
+          <span className="absolute inset-0 flex items-center justify-center bg-black/50 text-sm font-semibold text-white">
+            Hết hàng
+          </span>
+        ) : null}
       </div>
 
       <div className="flex flex-1 flex-col gap-1.5 p-3">
