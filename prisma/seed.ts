@@ -182,7 +182,7 @@ async function main() {
 
     const product = await db.product.upsert({
       where: { slug: p.slug },
-      update: {},
+      update: { description, ratingAvg: p.ratingAvg, ratingCount: p.ratingCount },
       create: {
         vendorId: vendor.id,
         categoryId: category.id,
